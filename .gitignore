@@ -1,5 +1,6 @@
 **/.ipynb_checkpoints
 telegram_bot/telegram_token.py
+art_dataset/model.pth
 Guide.ipynb
 **/.idea
 **/__pycache__

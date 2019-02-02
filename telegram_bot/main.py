@@ -1,42 +1,73 @@
-from model import ClassPredictor
+# You can take token by using a @BotFather
 from telegram_token import token
-import torch
 from config import reply_texts
-import numpy as np
-from PIL import Image
+from model import ClassPredictor
+import telebot
 from io import BytesIO
 
 
-model = ClassPredictor()
+class_ = ClassPredictor()
+bot = telebot.TeleBot(token, threaded=False)
+
+def te_find(message):
+    name, surname = message.from_user.first_name, message.from_user.last_name
+    if name == None:
+        if surname == None:
+            te = '-'
+        else:
+            te = surname
+    else:
+        if surname == None:
+            te = name
+        else:
+            te = '{} {}'.format(surname, name)
+    return te
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    person = te_find(message)
+    start_text = reply_texts['start_text'].format('' if person == '-' else f', {person}')
+    bot.send_message(message.chat.id, start_text)   
+        
+@bot.message_handler(commands=['help'])
+def help(message):
+    bot.send_message(message.chat.id, reply_texts['help_text'])       
+        
+def prediction(photo, type_):
+    if type_ == 'd':
+        file_id = photo.file_id
+    else:
+        file_id = photo[2].file_id
+
+    photo = telebot.apihelper.download_file(token, telebot.apihelper.get_file(token, file_id)['file_path'])
+    photo = BytesIO(photo)
+
+    output = class_.predict(photo)
+    return output
+  
+@bot.message_handler(content_types=["photo"])
+def photos(message):
+    ph = message.photo
+    output = prediction(ph, 'ph')
+    bot.send_message(message.chat.id, reply_texts['pred_answer'].format(output))
+        
+@bot.message_handler(content_types=["document"])
+def documents(message):
+    ph = message.document
+    output = prediction(ph, 'd')
+    bot.send_message(message.chat.id, reply_texts['pred_answer'].format(output))
+        
+@bot.message_handler(content_types=["text"])
+def texts(message):
+    bot.send_message(message.chat.id, reply_texts['not_understand'])
 
 
-def send_prediction_on_photo(bot, update):
-    chat_id = update.message.chat_id
-    print("Got image from {}".format(chat_id))
-
-    # получаем информацию о картинке
-    image_info = update.message.photo[-1]
-    image_file = bot.get_file(image_info)
-    image_stream = BytesIO()
-    image_file.download(out=image_stream)
-
-    output = model.predict(image_stream)
-    _, class_index = torch.max(output, 0)
-
-    # теперь отправим результат
-    update.message.reply_text(reply_texts['pred_answer'].format(class_index))
-    print("Sent Answer to user")
-
+def main():
+    bot.polling(none_stop = True, interval = 0)
 
 if __name__ == '__main__':
-    from telegram.ext import Updater, MessageHandler, Filters
-    import logging
-
-    # Включим самый базовый логгинг, чтобы видеть сообщения об ошибках
-    logging.basicConfig(
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        level=logging.INFO)
-    # используем прокси, так как без него у меня ничего не работало(
-    updater = Updater(token=token,  request_kwargs={'proxy_url': 'socks4://168.195.171.42:44880'})
-    updater.dispatcher.add_handler(MessageHandler(Filters.photo, send_prediction_on_photo))
-    updater.start_polling()
+    while True:
+        try:
+            main()
+        except:
+            sleep(1)
