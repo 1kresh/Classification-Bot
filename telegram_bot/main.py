@@ -1,9 +1,9 @@
-# You can take token by using a @BotFather
 from telegram_token import token
 from config import reply_texts
 from model import ClassPredictor
 import telebot
 from io import BytesIO
+from time import sleep
 
 
 class_ = ClassPredictor()
@@ -37,24 +37,25 @@ def prediction(photo, type_):
     if type_ == 'd':
         file_id = photo.file_id
     else:
-        file_id = photo[2].file_id
-
+        try:
+            file_id = photo[3].file_id
+        except:
+            file_id = photo[2].file_id
     photo = telebot.apihelper.download_file(token, telebot.apihelper.get_file(token, file_id)['file_path'])
     photo = BytesIO(photo)
-
     output = class_.predict(photo)
     return output
   
 @bot.message_handler(content_types=["photo"])
 def photos(message):
-    ph = message.photo
-    output = prediction(ph, 'ph')
+    photo = message.photo
+    output = prediction(photo, 'ph')
     bot.send_message(message.chat.id, reply_texts['pred_answer'].format(output))
         
 @bot.message_handler(content_types=["document"])
 def documents(message):
-    ph = message.document
-    output = prediction(ph, 'd')
+    document = message.document
+    output = prediction(document, 'd')
     bot.send_message(message.chat.id, reply_texts['pred_answer'].format(output))
         
 @bot.message_handler(content_types=["text"])
